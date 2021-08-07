@@ -29,7 +29,7 @@ from qgis.PyQt.QtWidgets import QAction
 from .resources import *
 # Import the code for the dialog
 from .ogr_dxf2shp_dialog import OGR_DXF2SHPDialog
-import os.path
+import os
 
 
 class OGR_DXF2SHP:
@@ -63,9 +63,6 @@ class OGR_DXF2SHP:
         self.actions = []
         self.menu = self.tr(u'&OGR DXF2SHP')
 
-        # Check if plugin was started the first time in current QGIS session
-        # Must be set in initGui() to survive plugin reloads
-        self.first_start = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -157,6 +154,7 @@ class OGR_DXF2SHP:
 
         return action
 
+
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
@@ -166,9 +164,6 @@ class OGR_DXF2SHP:
             text=self.tr(u'Convert DXF to SHP'),
             callback=self.run,
             parent=self.iface.mainWindow())
-
-        # will be set False in run()
-        self.first_start = True
 
 
     def unload(self):
@@ -185,9 +180,7 @@ class OGR_DXF2SHP:
 
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.first_start == True:
-            self.first_start = False
-            self.dlg = OGR_DXF2SHPDialog()
+        self.dlg = OGR_DXF2SHPDialog()
 
         # show the dialog
         self.dlg.show()

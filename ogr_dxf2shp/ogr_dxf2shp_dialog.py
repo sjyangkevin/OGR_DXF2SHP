@@ -24,8 +24,12 @@
 
 import os
 
+from PyQt5.QtWidgets import QFileDialog, QListWidgetItem
+
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
+from qgis.utils import QgsMessageLog
+from .modules.drivers import DXF2SHP_Driver
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -42,3 +46,148 @@ class OGR_DXF2SHPDialog(QtWidgets.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+
+        self.Input_File_Select_PushButton.clicked.connect(self.open_file)
+        self.Input_File_LineEdit.textChanged.connect(self.input_file_change_handler)
+        
+        self.Output_Dir_Select_PushButton.clicked.connect(self.save_file)
+        self.Output_Dir_LineEdit.textChanged.connect(self.output_dir_change_handler)
+
+        self.Output_File_Name_LineEdit.textChanged.connect(self.output_name_change_handler)
+
+        self.Original_Projection_SelectWidget.crsChanged.connect(self.original_projection_change_handler)
+        self.Target_Projection_SelectWidget.crsChanged.connect(self.target_projection_change_handler)
+
+        self.Loaded_Layers_SelectAll_PushButton.clicked.connect(self.set_listwidget_item_all_select)
+        self.Loaded_Layers_UnSelectAll_PushButton.clicked.connect(self.clear_listwidget_item_selection)
+        
+        self.Loaded_Layers_ListWidget.setSelectionMode(2)
+        self.Loaded_Layers_ListWidget.itemSelectionChanged.connect(self.listwidget_selection_change_handler)
+
+        self.DXF2SHP_Driver = DXF2SHP_Driver() 
+    
+
+    def open_file(self):
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select an DXF file",
+            "",
+            "All Files (*);;DXF Files (*.dxf)"
+        )
+
+        self.Input_File_LineEdit.setText(file_path)
+
+
+    def save_file(self):
+        file_path = QFileDialog.getExistingDirectory(
+            self,
+            "Select an Output Directory",
+            ""
+        )
+        self.Output_Dir_LineEdit.setText(file_path)
+
+
+    def input_file_change_handler(self):
+        file_path = self.Input_File_LineEdit.text()
+        valid_flag = False
+        self.clear_listwidget_item_selection()
+        self.Loaded_Layers_ListWidget.clear()
+
+        if file_path == "":
+            self.Input_File_Validate_Label.setText("(Required)")
+            self.Input_File_Validate_Label.setStyleSheet("color: red")
+        else:
+            if os.path.exists(file_path) and \
+                os.path.basename(file_path).split('.')[1] == 'dxf' or \
+                os.path.basename(file_path).split('.')[1] == 'DXF':
+                
+                self.Input_File_Validate_Label.setText("(Valid)")
+                self.Input_File_Validate_Label.setStyleSheet("color: green")
+
+                valid_flag = True
+            else:
+                self.Input_File_Validate_Label.setText("(Invalid)")
+                self.Input_File_Validate_Label.setStyleSheet("color: red")
+        
+        if valid_flag:
+            self.DXF2SHP_Driver.set_input_file(file_path)
+            self.DXF2SHP_Driver.create_dxf_source()
+            self.DXF2SHP_Driver.set_dxf_layers()
+
+            self.DXF2SHP_Driver.set_dxf_layers()
+            for i in range(len(self.DXF2SHP_Driver.DXF_LAYERS)):
+                item = QListWidgetItem(self.DXF2SHP_Driver.DXF_LAYERS[i], self.Loaded_Layers_ListWidget)
+                self.Loaded_Layers_ListWidget.addItem(item)
+                item.setSelected(True)
+            
+            self.DXF2SHP_Driver.SELECTED_DXF_LAYERS = self.Loaded_Layers_ListWidget.selectedItems()
+
+        else:
+            self.DXF2SHP_Driver.input_file = None
+            self.DXF2SHP_Driver.DXF_SOURCE = None
+            self.DXF2SHP_Driver.DXF_LAYERS = []
+            self.DXF2SHP_Driver.SELECTED_DXF_LAYERS = []
+
+
+    def output_dir_change_handler(self):
+        file_path = self.Output_Dir_LineEdit.text()
+        valid_flag = False 
+
+        if file_path == "":
+            self.Output_Dir_Validate_Label.setText("(Required)")
+            self.Output_Dir_Validate_Label.setStyleSheet("color: red")
+        else:
+            if os.path.isdir(file_path):
+                self.Output_Dir_Validate_Label.setText("(Valid)")
+                self.Output_Dir_Validate_Label.setStyleSheet("color: green")
+
+                valid_flag = True
+            else:
+                self.Output_Dir_Validate_Label.setText("(Invalid)")
+                self.Output_Dir_Validate_Label.setStyleSheet("color: red")
+
+        if valid_flag:
+            self.DXF2SHP_Driver.set_output_dir(file_path)
+        else:
+            self.DXF2SHP_Driver.ESRI_SOURCE = None
+
+
+    def output_name_change_handler(self):
+        output_name = self.Output_File_Name_LineEdit.text()
+        self.DXF2SHP_Driver.set_output_name(output_name)
+
+
+    def original_projection_change_handler(self):
+        if self.Original_Projection_SelectWidget.crs().isValid():
+            self.Original_Projection_Validate_Label.setText("(Valid)")
+            self.Original_Projection_Validate_Label.setStyleSheet("color: green")
+
+        EPSG_ID = int(self.Original_Projection_SelectWidget.crs().authid().split(':')[1])
+        self.DXF2SHP_Driver.ORIGINAL_PROJECTION.ImportFromEPSG(EPSG_ID)
+
+
+    def target_projection_change_handler(self):
+        if self.Target_Projection_SelectWidget.crs().isValid():
+            self.Target_Projection_Validate_Label.setText("(Valid)")
+            self.Target_Projection_Validate_Label.setStyleSheet("color: green")
+
+        EPSG_ID = int(self.Target_Projection_SelectWidget.crs().authid().split(':')[1])
+        self.DXF2SHP_Driver.TARGET_PROJECTION.ImportFromEPSG(EPSG_ID)
+
+
+    def clear_listwidget_item_selection(self):
+        for i in range(self.Loaded_Layers_ListWidget.count()):
+            item = self.Loaded_Layers_ListWidget.item(i)
+            item.setSelected(False)
+        self.Loaded_Layers_ListWidget.setFocus()
+            
+    
+    def set_listwidget_item_all_select(self):
+        for i in range(self.Loaded_Layers_ListWidget.count()):
+            item = self.Loaded_Layers_ListWidget.item(i)
+            item.setSelected(True)
+        self.Loaded_Layers_ListWidget.setFocus()
+
+
+    def listwidget_selection_change_handler(self):
+        self.DXF2SHP_Driver.SELECTED_DXF_LAYERS = self.Loaded_Layers_ListWidget.selectedItems()
