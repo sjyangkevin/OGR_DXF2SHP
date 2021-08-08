@@ -2,6 +2,9 @@
 <ui version="4.0">
  <class>OGR_DXF2SHPDialogBase</class>
  <widget class="QDialog" name="OGR_DXF2SHPDialogBase">
+  <property name="enabled">
+   <bool>true</bool>
+  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -14,6 +17,13 @@
    <string>OGR DXF2SHP</string>
   </property>
   <layout class="QGridLayout" name="gridLayout_3">
+   <item row="1" column="0" colspan="2">
+    <widget class="Line" name="line">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+   </item>
    <item row="0" column="0" colspan="2">
     <layout class="QGridLayout" name="gridLayout">
      <item row="0" column="0">
@@ -281,7 +291,14 @@
       </widget>
      </item>
      <item row="5" column="2">
-      <widget class="QLineEdit" name="Attribute_File_LineEdit"/>
+      <widget class="QLineEdit" name="Attribute_File_LineEdit">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="readOnly">
+        <bool>false</bool>
+       </property>
+      </widget>
      </item>
      <item row="5" column="3">
       <widget class="QPushButton" name="Attribute_File_PushButton">
@@ -291,13 +308,6 @@
       </widget>
      </item>
     </layout>
-   </item>
-   <item row="1" column="0" colspan="2">
-    <widget class="Line" name="line">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-    </widget>
    </item>
    <item row="2" column="0">
     <layout class="QGridLayout" name="gridLayout_2">
@@ -331,6 +341,9 @@
     <layout class="QVBoxLayout" name="verticalLayout_2">
      <item>
       <widget class="QCheckBox" name="Convert_Selected_Layers_Only_CheckBox">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="text">
         <string>Convert Selected Layers Only</string>
        </property>
@@ -347,6 +360,16 @@
       </widget>
      </item>
     </layout>
+   </item>
+   <item row="4" column="1">
+    <widget class="QDialogButtonBox" name="button_box">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
    </item>
    <item row="2" column="1">
     <layout class="QVBoxLayout" name="verticalLayout">
@@ -375,16 +398,6 @@
       </widget>
      </item>
     </layout>
-   </item>
-   <item row="4" column="1">
-    <widget class="QDialogButtonBox" name="button_box">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
    </item>
    <item row="4" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout_2">

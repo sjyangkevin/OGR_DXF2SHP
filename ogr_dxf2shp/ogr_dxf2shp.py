@@ -24,6 +24,7 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
+from qgis.utils import QgsMessageLog
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -190,4 +191,6 @@ class OGR_DXF2SHP:
         if result:
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
-            pass
+
+            self.dlg.DXF2SHP_Driver()
+            self.dlg.add_to_layers()

@@ -24,12 +24,13 @@
 
 import os
 
-from PyQt5.QtWidgets import QFileDialog, QListWidgetItem
+from PyQt5.QtWidgets import QFileDialog, QListWidgetItem, QDialogButtonBox
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
-from qgis.utils import QgsMessageLog
+from qgis.core import QgsProject, QgsVectorLayer
 from .modules.drivers import DXF2SHP_Driver
+from osgeo import osr
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -61,8 +62,21 @@ class OGR_DXF2SHPDialog(QtWidgets.QDialog, FORM_CLASS):
         self.Loaded_Layers_SelectAll_PushButton.clicked.connect(self.set_listwidget_item_all_select)
         self.Loaded_Layers_UnSelectAll_PushButton.clicked.connect(self.clear_listwidget_item_selection)
         
+        # multi-selection
         self.Loaded_Layers_ListWidget.setSelectionMode(2)
         self.Loaded_Layers_ListWidget.itemSelectionChanged.connect(self.listwidget_selection_change_handler)
+
+        self.Attribute_File_PushButton.clicked.connect(self.open_attribute_file)
+        self.Attribute_File_LineEdit.textChanged.connect(self.attribute_file_change_handler)
+        
+        # single-selection
+        self.Attr_Index_Selection_ListWidget.setSelectionMode(1)
+        self.Attr_Index_Selection_ListWidget.itemSelectionChanged.connect(self.attribute_listwidget_selection_change_handler)
+
+        self.Attr_Index_Validate_PushButton.setEnabled(False)
+        self.Attr_Index_Validate_PushButton.clicked.connect(self.validate_attribute_file_handler)
+
+        self.button_box.button(QDialogButtonBox.Ok).setEnabled(False)
 
         self.DXF2SHP_Driver = DXF2SHP_Driver() 
     
@@ -76,6 +90,21 @@ class OGR_DXF2SHPDialog(QtWidgets.QDialog, FORM_CLASS):
         )
 
         self.Input_File_LineEdit.setText(file_path)
+
+
+    def open_attribute_file(self):
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select an DXF file",
+            ""
+        )
+        self.DXF2SHP_Driver.ATTRIBUTE_FILE = file_path
+        self.Attribute_File_LineEdit.setText(file_path)
+
+        self.Attr_Index_Validate_Label.setText("Please Click 'Validate' when 'Attribute File' is Used")
+        self.Attr_Index_Validate_Label.setStyleSheet("color: black")
+
+        self.validate_input()
 
 
     def save_file(self):
@@ -128,6 +157,8 @@ class OGR_DXF2SHPDialog(QtWidgets.QDialog, FORM_CLASS):
             self.DXF2SHP_Driver.DXF_LAYERS = []
             self.DXF2SHP_Driver.SELECTED_DXF_LAYERS = []
 
+        self.validate_input()
+
 
     def output_dir_change_handler(self):
         file_path = self.Output_Dir_LineEdit.text()
@@ -147,14 +178,61 @@ class OGR_DXF2SHPDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.Output_Dir_Validate_Label.setStyleSheet("color: red")
 
         if valid_flag:
+            
+            if not os.path.exists(file_path):
+                os.makedirs(file_path)
+
             self.DXF2SHP_Driver.set_output_dir(file_path)
+
+            if os.path.exists(file_path):
+                self.DXF2SHP_Driver.ESRI_DRIVER.DeleteDataSource(file_path)
+
+            self.DXF2SHP_Driver.create_esri_source()
         else:
+            self.DXF2SHP_Driver.set_output_dir(None)
             self.DXF2SHP_Driver.ESRI_SOURCE = None
+
+        self.validate_input()
 
 
     def output_name_change_handler(self):
         output_name = self.Output_File_Name_LineEdit.text()
         self.DXF2SHP_Driver.set_output_name(output_name)
+
+        self.validate_input()
+
+    def attribute_file_change_handler(self):
+        file_path = self.Attribute_File_LineEdit.text()
+        valid_flag = False
+        self.Attr_Index_Selection_ListWidget.clear()
+
+        if file_path == "":
+            self.Attribute_File_Validate_Label.setText("(Optional)")
+            self.Attribute_File_Validate_Label.setStyleSheet("color: black")
+        else:
+            if os.path.basename(file_path).split('.')[1] == "csv":
+                self.Attribute_File_Validate_Label.setText("(Valid)")
+                self.Attribute_File_Validate_Label.setStyleSheet("color: green")
+
+                valid_flag = True
+            else:
+                self.Attribute_File_Validate_Label.setText("(Need CSV)")
+                self.Attribute_File_Validate_Label.setStyleSheet("color: red")
+                self.DXF2SHP_Driver.set_attribute_file(None)
+
+        if valid_flag:
+            self.DXF2SHP_Driver.set_attribute_file(file_path)
+            self.Attr_Index_Validate_PushButton.setEnabled(True)
+
+            attr_cols, _ = self.DXF2SHP_Driver.read_attribute_file()
+        
+            self.Attr_Index_Selection_ListWidget.addItems(attr_cols)
+        else:
+            self.DXF2SHP_Driver.set_attribute_file(None)
+            self.DXF2SHP_Driver.SELECTED_ATTRIBUTE_COLUMN = None
+            self.Attr_Index_Validate_PushButton.setEnabled(False)
+
+        self.validate_input()
 
 
     def original_projection_change_handler(self):
@@ -162,8 +240,15 @@ class OGR_DXF2SHPDialog(QtWidgets.QDialog, FORM_CLASS):
             self.Original_Projection_Validate_Label.setText("(Valid)")
             self.Original_Projection_Validate_Label.setStyleSheet("color: green")
 
-        EPSG_ID = int(self.Original_Projection_SelectWidget.crs().authid().split(':')[1])
-        self.DXF2SHP_Driver.ORIGINAL_PROJECTION.ImportFromEPSG(EPSG_ID)
+            EPSG_ID = int(self.Original_Projection_SelectWidget.crs().authid().split(':')[1])
+            self.DXF2SHP_Driver.ORIGINAL_PROJECTION.ImportFromEPSG(EPSG_ID)
+
+        else:
+            self.Target_Projection_Validate_Label.setText("(Invalid)")
+            self.Target_Projection_Validate_Label.setStyleSheet("color: red")
+            self.DXF2SHP_Driver.ORIGINAL_PROJECTION = osr.SpatialReference()
+
+        self.validate_input()
 
 
     def target_projection_change_handler(self):
@@ -171,9 +256,15 @@ class OGR_DXF2SHPDialog(QtWidgets.QDialog, FORM_CLASS):
             self.Target_Projection_Validate_Label.setText("(Valid)")
             self.Target_Projection_Validate_Label.setStyleSheet("color: green")
 
-        EPSG_ID = int(self.Target_Projection_SelectWidget.crs().authid().split(':')[1])
-        self.DXF2SHP_Driver.TARGET_PROJECTION.ImportFromEPSG(EPSG_ID)
+            EPSG_ID = int(self.Target_Projection_SelectWidget.crs().authid().split(':')[1])
+            self.DXF2SHP_Driver.TARGET_PROJECTION.ImportFromEPSG(EPSG_ID)
 
+        else:
+            self.Target_Projection_Validate_Label.setText("(Invalid)")
+            self.Target_Projection_Validate_Label.setStyleSheet("color: red")
+            self.DXF2SHP_Driver.TARGET_PROJECTION = osr.SpatialReference()
+
+        self.validate_input()
 
     def clear_listwidget_item_selection(self):
         for i in range(self.Loaded_Layers_ListWidget.count()):
@@ -188,6 +279,80 @@ class OGR_DXF2SHPDialog(QtWidgets.QDialog, FORM_CLASS):
             item.setSelected(True)
         self.Loaded_Layers_ListWidget.setFocus()
 
-
+    
     def listwidget_selection_change_handler(self):
-        self.DXF2SHP_Driver.SELECTED_DXF_LAYERS = self.Loaded_Layers_ListWidget.selectedItems()
+        self.DXF2SHP_Driver.SELECTED_DXF_LAYERS = [item.text() for item in self.Loaded_Layers_ListWidget.selectedItems()]
+        self.Attr_Index_Validate_Label.setText("Please Click 'Validate' when 'Attribute File' is Used")
+        self.Attr_Index_Validate_Label.setStyleSheet("color: black")
+
+        self.validate_input()
+
+
+    def attribute_listwidget_selection_change_handler(self):
+        # only allow to select a single item, this function return a list, get the first one
+        if len(self.Attr_Index_Selection_ListWidget.selectedItems()) > 0:
+            self.DXF2SHP_Driver.SELECTED_ATTRIBUTE_COLUMN = self.Attr_Index_Selection_ListWidget.selectedItems()[0].text()
+            self.Attr_Index_Validate_Label.setText("Please Click 'Validate' when 'Attribute File' is Used")
+            self.Attr_Index_Validate_Label.setStyleSheet("color: black")
+
+        self.validate_input()
+
+
+    def validate_attribute_file_handler(self):
+        
+        column = self.DXF2SHP_Driver.SELECTED_ATTRIBUTE_COLUMN
+        _, attr_data = self.DXF2SHP_Driver.read_attribute_file()
+
+        if len(attr_data) != len(self.DXF2SHP_Driver.SELECTED_DXF_LAYERS):
+            self.Attr_Index_Validate_Label.setText("number of records not match")
+            self.Attr_Index_Validate_Label.setStyleSheet("color: red")
+            return
+
+        if len(self.DXF2SHP_Driver.SELECTED_DXF_LAYERS) == 0 and len(attr_data) > 0:
+            self.Attr_Index_Validate_Label.setText("please select DXF layers")
+            self.Attr_Index_Validate_Label.setStyleSheet("color: red")
+            return
+
+        if self.Attribute_File_Validate_Label.text() == "(Valid)" and \
+            self.DXF2SHP_Driver.SELECTED_ATTRIBUTE_COLUMN is None:
+            self.Attr_Index_Validate_Label.setText("please select a column for mapping")
+            self.Attr_Index_Validate_Label.setStyleSheet("color: red")
+            return
+
+        for row in attr_data:
+            if row[column] not in self.DXF2SHP_Driver.SELECTED_DXF_LAYERS:
+                self.Attr_Index_Validate_Label.setText("records and layers not match")
+                self.Attr_Index_Validate_Label.setStyleSheet("color: red")
+                return
+
+        self.Attr_Index_Validate_Label.setText("Valid")
+        self.Attr_Index_Validate_Label.setStyleSheet("color: green")
+
+        self.validate_input()
+
+
+    def validate_input(self):
+        valid_flag = True
+
+        if self.Input_File_Validate_Label.text() != "(Valid)":
+            valid_flag = False
+        
+        if self.Output_Dir_Validate_Label.text() != "(Valid)":
+            valid_flag = False
+
+        if self.Original_Projection_Validate_Label.text() != "(Valid)":
+            valid_flag = False
+
+        if self.Target_Projection_Validate_Label.text() != "(Valid)":
+            valid_flag = False
+
+        if self.Attribute_File_Validate_Label.text() == "(Valid)":
+            if self.Attr_Index_Validate_Label.text() != "Valid":
+                valid_flag = False
+        
+        self.button_box.button(QDialogButtonBox.Ok).setEnabled(valid_flag)
+
+    def add_to_layers(self):
+        if self.Add_Output_To_Layers_CheckBox.isChecked():
+            shapefile = QgsVectorLayer(self.DXF2SHP_Driver.output_dir, self.DXF2SHP_Driver.output_name, "ogr")
+            QgsProject.instance().addMapLayer(shapefile)
