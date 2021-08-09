@@ -6,6 +6,8 @@ User can specify whether to insert attributes to those extracted geometries by p
 
 The plugin will load all the records from the .CSV file, and insert those data into selected geometries.
 
+![interface](https://github.com/sjyangkevin/OGR_DXF2SHP/blob/main/interface.PNG)
+
 ## Work Procedures
 
 1. Select an .DXF file as input.
