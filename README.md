@@ -27,6 +27,7 @@ The plugin will load all the records from the .CSV file, and insert those data i
 ## Future Works
 
 1. Enable functionalities for converting other geometries such as point, polyline, etc.
-2. Fix the field_name creation bug in attribute file loading.
-3. Enable loading attribute data from databases such as Postgres, Oracle, etc., and interaction with databases.
+2. Complete the works when no attribute files were passed
+3. Fix the field_name creation bug in attribute file loading.
+4. Enable loading attribute data from databases such as Postgres, Oracle, etc., and interaction with databases.
 
